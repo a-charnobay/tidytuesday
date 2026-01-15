@@ -48,6 +48,14 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+# Quarto output / 
+.quarto/
+*_files/
+*_cache/
+site_libs/
+/rendered/
+
+
 # macOS system files
 .DS_Store
 **/.DS_Store
