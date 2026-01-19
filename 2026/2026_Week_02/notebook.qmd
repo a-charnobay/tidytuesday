@@ -126,7 +126,7 @@ languages |>
 #| fig-width: 7
 #| fig-height: 4
 
-languages %>%
+languages |>
   distinct(language, country) |>
   count(language, name = "n_countries") |>
   filter(n_countries > 1) |>
