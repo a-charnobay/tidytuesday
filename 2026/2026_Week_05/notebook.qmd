@@ -1,0 +1,222 @@
+---
+title: "Edible Plants Database"
+subtitle: "TidyTuesday Week 05"
+author: "Aghata Charnobay"
+date: "2026-02-06"
+categories: [distribution, jitter plot]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+This week we're exploring edible plants! The Edible Plant Database (EPD) is an outcome of the GROW Observatory, a European Citizen Science project on growing food, soil moisture sensing and land monitoring. It contains information on 146 edible plant species, including their ideal growing conditions and time to harvest and germination.
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(tidyverse)
+library(tidytext)
+library(ggtext)       
+library(showtext) 
+library(ggbranding)
+library(stringr)
+library(forcats)
+
+```
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+
+# Font setup 
+
+font_add_google("Commissioner")
+showtext_auto()
+showtext_opts(dpi = 300)
+
+# Theme style 
+
+font_main  <- "Commissioner"
+col_title  <- "grey10"
+col_text   <- "grey30"
+col_accent <- "#D26A44" 
+text_size_base <- 11
+
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 5)
+edible_plants <- tuesdata$edible_plants
+
+```
+
+## 2 Quick exploratory data analysis
+
+### How many cultivation plant classes exist in the dataset?
+
+```{r}
+#| label: EDA 1
+
+edible_plants |> count(cultivation, sort = TRUE)
+edible_plants |> count(water, sort = TRUE)
+
+```
+
+
+## 3 Prepare data for plotting
+
+```{r}
+
+#| label: Prepare data for plotting
+
+edible_plants <- edible_plants |> 
+  mutate(
+    cultivation = recode(cultivation, 
+                         "Brassicas" = "Brassica", 
+                         "Solanum"   = "Solanaceae"),
+    water = str_to_title(water),
+    water = str_replace(water, "Hight", "High"),
+    water = factor(water, levels = c("Very Low", "Low", "Medium", "High", "Very High")),
+    cultivation = factor(
+      cultivation,
+      levels = rev(sort(unique(cultivation)))
+      )
+  )
+
+# Verify results
+edible_plants |> count(cultivation, water)
+```
+
+## 4 Plot
+
+```{r}
+#| label: Plot data
+
+cultivation_palette <- c(
+  "Legume"         = "#A8D5C2", 
+  "Brassica"       = "#CDE7B0", 
+  "Cucurbit"       = "#F6D6A8", 
+  "Salad"          = "#DCEED1", 
+  "Miscellaneous"  = "#D3D3D3", 
+  "Solanaceae"     = "#F2B8A0", 
+  "Umbelliferae"   = "#F7E6A1", 
+  "Allium"         = "#C7C6E5", 
+  "Chenopodiaceae" = "#BFD7EA", 
+  "Lamiaceae"      = "#E7C6E1"  
+)
+
+
+p <- ggplot(edible_plants, aes(x = cultivation, y = water)) +
+  # Use jittered points to show individual species distribution without overlap
+  geom_jitter(
+    aes(fill = cultivation),
+    shape  = 21,      # Circular shape with a border
+    color  = "grey40",# Border color
+    stroke = 0.6,    # Border thickness
+    width  = 0.10,   # Degree of horizontal jitter
+    alpha  = 0.9,    # Slight transparency for overlapping points
+    size   = 3        # Fixed point size
+  ) +
+  # Apply the custom color palette to the fill aesthetic
+  scale_fill_manual(values = cultivation_palette) +
+  # Flip coordinates to display cultivation groups on the y-axis for better readability
+  coord_flip() +
+  # Descriptive titles and labels based on the data analysis
+  labs(
+    title    = "Does plants cultivation group determine water needs?",
+    subtitle = "Not necessarily. While many species cluster at medium water requirements, groups like Legumes and\nLamiaceae span the entire spectrum from Very Low to Very High.",
+    x        = "", 
+    y        = "Water requirement"
+  ) +
+  
+  # Theme Customization
+  # Set the base theme and global font family
+  theme_minimal(base_family = font_main) + 
+  theme(
+    legend.position     = "none", # Legend is redundant as colors match axis labels
+    plot.title.position = "plot", # Align title to the edge of the plot area
+    
+    # Title styling using predefined color and size variables
+    plot.title = element_text(
+      face  = "bold",
+      size  = text_size_base * 1.6,
+      color = col_title
+    ),
+    # Subtitle styling with consistent spacing
+    plot.subtitle = element_text(
+      size   = text_size_base + 1,
+      color  = col_text,
+      margin = margin(t = 3, b = 25)
+    ),
+    # Axis title and text styling for clarity
+    axis.title = element_text(
+      color  = col_text,
+      size   = 14,
+      margin = margin(t = 5)
+    ),
+    axis.text = element_text(
+      color = col_text,
+      size  = text_size_base
+    ),
+    # Plot layout and background coloring
+    plot.margin      = margin(20, 20, 10, 20),
+    plot.background  = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA)
+  ) +
+  
+  # Branding and Credits
+  # Add social handles and data sourcing using the ggbranding package
+  add_branding(
+    github                = "a-charnobay",
+    linkedin              = "Aghata Charnobay",
+    additional_text       = "Data: The Edible Plant Database (EPD) | #TidyTuesday 2026 - Week 5",
+    text_position         = "before",
+    line_spacing          = 1L,
+    text_color            = col_text,   # Shared color variable
+    text_family           = font_main,  # Shared font variable
+    icon_color            = col_accent, # Branding accent color
+    caption_halign        = 1,
+    icon_size             = "10pt",
+    text_size             = "10pt",
+    caption_margin        = margin(t = 25, b = 5, unit = "pt")
+  )
+
+p
+
+```
+
+
+## 5 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "edible_plants.png", 
+  plot = p,
+  width = 8, 
+  height = 6,
+  dpi = 300,
+  bg = "white"
+)
+```
+
