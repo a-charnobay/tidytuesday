@@ -3,7 +3,7 @@ title: "Edible Plants Database"
 subtitle: "TidyTuesday Week 05"
 author: "Aghata Charnobay"
 date: "2026-02-06"
-categories: [distribution, jitter plot]
+categories: [distribution, points]
 page-navigation: true
 toc: true
 toc-depth: 3
@@ -79,7 +79,6 @@ edible_plants |> count(cultivation, sort = TRUE)
 edible_plants |> count(water, sort = TRUE)
 
 ```
-
 
 ## 3 Prepare data for plotting
 
