@@ -1,0 +1,170 @@
+---
+title: "2026 Winter Olympics"
+subtitle: "TidyTuesday Week 06"
+author: "Aghata Charnobay"
+date: "2026-02-10"
+categories: [distribution, heatmap]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+This week we're exploring the event schedule for the 2026 Winter Olympics in Milan-Cortina, Italy. The dataset contains detailed information about all 1,866 Olympic events, including both competition and training sessions across various winter sport disciplines.
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(tidyverse)
+library(tidytext)
+library(ggtext)       
+library(showtext) 
+library(ggbranding)
+library(stringr)
+
+```
+
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+
+# Font setup 
+
+font_add_google("Commissioner")
+showtext_auto()
+showtext_opts(dpi = 300)
+
+# Theme style 
+
+font_main  <- "Commissioner"
+col_title  <- "grey10"
+col_text   <- "grey30"
+col_accent <- "#926c15" 
+color_palette <- c("#E5E5E5", "#E6D5A9", "#dbb42c", "#926c15")
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 6)
+olympic_schedule <- tuesdata$schedule
+
+```
+
+
+## 2 Quick exploratory data analysis
+
+### How many events exist per discipline?
+
+```{r}
+
+#| label: EDA 1
+olympic_schedule |> count(discipline_name, sort = TRUE) 
+
+```
+
+### On which day and at what time do most medal events occur?
+
+```{r}
+#| label: EDA 2
+
+olympic_schedule |>
+  filter(is_medal_event == TRUE) |> 
+  count(day_of_week, hour = hour(start_datetime_utc)) |> 
+  arrange(desc(n))
+```
+
+
+## 3 Prepare data for plotting
+
+```{r}
+#| label: Prepare data for plotting
+
+heatmap_data <- olympic_schedule |>
+  filter(is_medal_event == TRUE) |> 
+  mutate(
+    hour = hour(start_datetime_utc),
+    day_of_week = fct_relevel(day_of_week, 
+                               "Sunday", "Saturday", "Friday", "Thursday", 
+                               "Wednesday", "Tuesday", "Monday") 
+  ) |>
+  count(day_of_week, hour)
+```
+
+## 4 Plot
+
+```{r}
+#| label: Plot data
+
+p <- ggplot(heatmap_data, aes(x = hour, y = day_of_week, fill = n)) +
+  geom_tile(color = "white", size = 1.5) + 
+  scale_fill_gradientn(colors = color_palette) +
+  scale_x_continuous(breaks = seq(0, 23, 2), labels = paste0(seq(0, 23, 2), ":00")) +
+  theme_minimal(base_family = font_main) +
+  labs(
+    title = "2026 Winter Olympics Golden Hour",
+    subtitle = "Want to see the finals? Grab the remote on Tuesday, Wednesday, or the weekend — medal events hit their\npeak right after lunch!",
+    x = "Hour (UTC timezone)",
+    y = NULL
+  ) +
+  theme(
+    plot.margin = margin(20, 20, 10, 20),
+    panel.grid = element_blank(),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.title = element_text(face = "bold", size = 16, color = "black"),
+    plot.title.position = "plot",
+    plot.subtitle = element_text(size = 11, color = "grey30", margin = margin(t = 5, b = 20)),
+    axis.text = element_text(face = "bold", size = 10, color = "grey30"),
+    axis.title = element_text(size = 11, color = "black"),
+    legend.position = "none"
+  ) +
+  add_branding(
+    github                = "a-charnobay",
+    linkedin              = "Aghata Charnobay",
+    additional_text       = "Data: 2026 Winter Olympics Event Schedule | #TidyTuesday 2026 - Week 6",
+    text_position         = "before",
+    line_spacing          = 1L,
+    text_color            = col_text,   
+    text_family           = font_main,  
+    icon_color            = col_accent, 
+    caption_halign        = 1,
+    icon_size             = "10pt",
+    text_size             = "10pt",
+    caption_margin        = margin(t = 25, b = 5, unit = "pt")
+  )
+p 
+```
+
+
+## 5 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "winter_olympics.png", 
+  plot = p,
+  width = 8, 
+  height = 5,
+  dpi = 300,
+  bg = "white"
+)
+```
+
