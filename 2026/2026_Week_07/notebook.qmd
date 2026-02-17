@@ -1,0 +1,255 @@
+---
+title: "Agricultural Production Statistics in New Zealand"
+subtitle: "TidyTuesday Week XX"
+author: "Aghata Charnobay"
+date: "2026-02-17"
+categories: [time series, line plot]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+This week we are exploring agriculture production statistics in New Zealand using data compiled from from StatsNZ.
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(tidyverse)
+library(tidytext)
+library(ggtext)       
+library(showtext) 
+library(ggbranding)
+library(stringr)
+library(patchwork)
+
+```
+
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+
+# Font setup 
+
+font_add_google("Commissioner")
+showtext_auto()
+showtext_opts(dpi = 300)
+
+# Theme style 
+
+font_main  <- "Commissioner"
+col_title  <- "grey10"
+col_text   <- "grey30"
+col_accent <- "#D26A44" 
+
+crop_palette <- c(
+  "Maize"  = "#ffca16",
+  "Wheat"  = "#f97300",
+  "Barley" = "#996515",
+  "Oats"    = "#187322"
+)
+
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 7)
+dataset <- tuesdata$dataset
+
+```
+
+
+## 2 Quick exploratory data analysis
+
+# The main grain crops grown in New Zealand are barley, maize, wheat, and oats.
+# Let's check whether data for these crops are available in the dataset.
+
+```{r}
+
+#| label: EDA 1
+dataset |> 
+  count(measure, sort = TRUE) |>
+  filter(str_detect(measure, "Wheat|Barley|Oats|Maize")) 
+
+```
+
+The dataset includes yield and area (sown/harvested) for these crops, although some values are missing.
+
+ - Area sown: land planted.
+ - Area harvested: land actually harvested.
+
+Typically, area harvested is smaller than area sown due to losses.
+However, in this dataset the terminology appears to change around 2003 from "area sown" to "area harvested." 
+
+For consistency, I will treat them as equivalent measures of cultivated area.
+
+## 3 Prepare data for plotting
+
+```{r}
+#| label: Prepare data for plotting
+
+dataset_crops <- dataset |>
+  filter(str_detect(measure, "Wheat|Barley|Oats|Maize")) |>
+  mutate(
+    crop = str_extract(measure, "Wheat|Barley|Oats|Maize"),
+    variable = if_else(
+      str_detect(str_to_lower(measure), "area"),
+      "area_harvested",
+      "yield"
+    )
+  ) |>
+  select(year_ended_june, crop, variable, value) |>
+  pivot_wider(
+    names_from = variable,
+    values_from = value
+  ) |>
+  mutate(
+    productivity = yield / area_harvested,
+    yield_kt = yield / 1000,
+    area_harvested_thousand_ha = area_harvested / 1000
+  )
+
+```
+
+## 4 Plot
+
+```{r}
+#| label: Plot data
+
+# Plot 1: Area Harvested
+p_area <- ggplot(dataset_crops,
+                 aes(x = year_ended_june,
+                     y = area_harvested_thousand_ha,
+                     color = crop)) +
+  geom_line(linewidth = 0.7, alpha = 0.7) +
+  scale_color_manual(values = crop_palette) +
+  labs(x = NULL, y = "Area (thousand ha)") +
+  theme_minimal(base_family = font_main) +
+  theme(legend.position = "none",
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 8, color = "grey30"),
+        axis.title = element_text(face = "bold", size = 9, color = "grey30"))
+
+# Plot 2: Yield
+p_yield <- ggplot(dataset_crops,
+                 aes(x = year_ended_june,
+                     y = yield_kt,
+                     color = crop)) +
+  geom_line(linewidth = 0.7, alpha = 0.7) +
+  scale_color_manual(values = crop_palette) +
+  labs(x = NULL, y = "Yield (thousand tonnes)") +
+  theme_minimal(base_family = font_main) +
+  theme(legend.position = "none",
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 8, color = "grey30"),
+        axis.title = element_text(face = "bold", size = 9, color = "grey30"))
+
+# Plot 3: Productivity
+p_productivity <- ggplot(dataset_crops,
+                 aes(x = year_ended_june,
+                     y = productivity,
+                     color = crop)) +
+  geom_line(linewidth = 0.7, alpha = 0.7) +
+  scale_color_manual(values = crop_palette) +
+  scale_y_continuous(labels = scales::label_number(accuracy = 0.1)) +
+  labs(x = "", y = "Productivity (tonnes/ha)") +
+  theme_minimal(base_family = font_main) +
+  theme(legend.position = "none",
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 8, color = "grey30"),
+        axis.title = element_text(face = "bold", size = 9, color = "grey30"))
+
+# Plot 4: Annotation Tag
+p_text <- ggplot() +
+  ggtext::geom_textbox(
+    aes(x = 0.5, y = 0.5), 
+    label = "<b style='color:#996515;'>Barley</b>, <b style='color:#f97300;'>wheat</b>, 
+    <b style='color:#ffca16;'>maize</b>, and <b style='color:#187322;'>oats</b> dominate New Zealand’s cereal production.
+    Over time, crop productivity for these grains has increased with cultivated 
+    area remaining relatively stable, indicating that growth in cereal production has been driven by 
+    improvements in technology and crop management rather than land expansion.",
+    hjust = 0.5, vjust = 0.5, 
+    halign = 0.5,               
+    fill = NA, 
+    box.colour = NA, 
+    family = font_main,
+    size = 3.5,                   
+    lineheight = 1.2,
+    width = unit(0.95, "npc")   # Leaves a small margin so it doesn't touch the other plots
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_void()
+
+# 5. Assembly using Patchwork Design
+
+layout_design <- "
+  AABB
+  CCDD
+"
+
+final_plot <- (p_area + p_yield + p_productivity + p_text) + 
+  plot_layout(design = layout_design) +
+  plot_annotation(
+    title = "The Evolution of Cereal Production in New Zealand",
+    theme = theme(
+      plot.title = element_text(family = font_main, face = "bold", size = 16, color = col_title, margin = margin(b = 25)),
+      plot.subtitle = element_markdown(),
+      plot.margin = margin(20, 20, 10, 20)
+    )
+  ) 
+
+p <- final_plot +
+  add_branding(
+    github          = "a-charnobay",
+    linkedin        = "Aghata Charnobay",
+    additional_text = "Data: Agriculture StatsNZ | #TidyTuesday 2026-Week 7",
+    text_position   = "before",
+    line_spacing    = 1L,
+    text_color      = col_text,
+    text_family     = font_main,
+    icon_color      = col_accent,
+    caption_halign  = 1,
+    icon_size       = "9pt",
+    text_size       = "9pt",
+    caption_margin  = margin(t = 5, b = 5, unit = "pt")
+  )
+
+```
+
+
+## 5 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "NZ_agriculturalStats.png", 
+  plot = p,
+  width = 8, 
+  height = 5,
+  dpi = 300,
+  bg = "white"
+)
+```
+
+
+
+
