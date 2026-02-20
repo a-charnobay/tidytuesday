@@ -1,0 +1,470 @@
+---
+title: "A small guide to visualizing time series data"
+subtitle: "TidyTuesday Week 07"
+author: "Aghata Charnobay"
+date: "2026-02-20"
+categories: [time series, guide]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+This week we are exploring agriculture production statistics in New Zealand using data compiled from from StatsNZ.
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(tidyverse)
+library(tidytext)
+library(ggtext)       
+library(showtext) 
+library(ggbranding)
+library(stringr)
+library(patchwork)
+library(sysfonts)
+library(here)
+
+```
+
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+
+# Loading fonts
+
+font_add_google("Commissioner")
+showtext_auto()
+showtext_opts(dpi = 300)
+
+font_main  <- "Commissioner"
+title_col  <- "grey10"
+text_col   <- "grey20"
+
+# Define plot colors
+
+wheat_col  <- "#2E7D32"
+barley_col <- "#66BB6A"
+bg_col     <- "#F2F4F8"
+
+
+# Social 
+
+## Add the Font Awesome Brands file
+
+font_add(
+  family = "fa-brands", 
+  regular = here("fonts", "Font Awesome 7 Brands-Regular-400.otf")
+)
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 7)
+dataset <- tuesdata$dataset
+```
+
+## 2 Prepare data for plotting
+
+```{r}
+#| label: Prepare data for plotting
+
+dataset_crops <- dataset |>
+  filter(str_detect(measure, "Wheat|Barley|Oats|Maize")) |>
+  mutate(
+    crop = str_extract(measure, "Wheat|Barley|Oats|Maize"),
+    variable = if_else(
+      str_detect(str_to_lower(measure), "area"),
+      "area_harvested",
+      "yield"
+    )
+  ) |>
+  select(year_ended_june, crop, variable, value) |>
+  pivot_wider(
+    names_from = variable,
+    values_from = value
+  ) |>
+  mutate(
+    productivity = yield / area_harvested,
+    yield_kt = yield / 1000,
+    area_harvested_thousand_ha = area_harvested / 1000
+  )
+
+## Filtering the dataset
+
+last_year <- max(dataset_crops$year_ended_june, na.rm = TRUE)
+ts_dataset <- dataset_crops |>
+  filter(year_ended_june >= last_year - 20) |>
+  filter(crop %in% c("Wheat", "Barley"))
+
+
+```
+
+## 3 Plot
+
+```{r}
+#| label: Plot data
+#| fig-height: 7
+#| fig-width: 8
+
+## Line plot -----
+
+p1 <- ggplot(ts_dataset |> filter(crop == "Wheat")) +
+  geom_line(
+    aes(x = year_ended_june, y = productivity),
+    colour = wheat_col,
+    linewidth = 0.8
+  ) +
+  facet_wrap(~"Line plot") +
+  labs(
+    x = "",
+    y = ""
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(legend.position = "none")
+
+## Multiple line chart ----
+
+p2 <- ggplot(
+  ts_dataset |> filter(crop %in% c("Wheat", "Barley"))
+) +
+  geom_line(
+    aes(x = year_ended_june,
+        y = productivity,
+        colour = crop),
+    linewidth = 0.7
+  ) +
+  scale_colour_manual(values = c(
+    "Wheat"  = wheat_col,
+    "Barley" = barley_col
+  )) +
+  facet_wrap(~"Multi-line plot") +
+  labs(
+    x = "",
+    y = "",
+    colour = NULL
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(legend.position = "none")
+
+
+## Column chart ----
+
+p3 <- ggplot(
+  ts_dataset |>
+    filter(year_ended_june > 2019)
+) +
+  geom_col(
+    aes(x = factor(year_ended_june),
+        y = productivity,
+        fill = crop),
+    position = "dodge",
+    colour = NA,
+    alpha = 0.9
+  ) +
+  scale_fill_manual(values = c(
+    "Wheat"  = wheat_col,
+    "Barley" = barley_col
+  )) +
+  facet_wrap(~"Column plot") +
+  labs(
+    x = "",
+    y = NULL
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  )
+
+## Area chart ----
+
+p4 <- ggplot(
+  ts_dataset |> 
+    filter(crop == "Wheat"),
+  aes(x = year_ended_june,
+      y = productivity)
+) +
+  geom_area(
+    fill = wheat_col,
+    colour = wheat_col,
+    alpha = 0.7,
+    linewidth = 0.5
+  ) +
+  facet_wrap(~"Area plot") +
+  labs(
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(
+    legend.position = "none"
+  )
+
+## Stacked Area chart ----
+
+ts_prod <- ts_dataset |>
+  mutate(
+    production = yield * area_harvested
+  )
+
+ts_prod <- ts_prod |>
+  group_by(year_ended_june) |>
+  mutate(
+    total_production = sum(production, na.rm = TRUE),
+    share = production / total_production
+  ) |>
+  ungroup()
+
+p5 <- ggplot(
+  ts_prod,
+  aes(x = year_ended_june,
+      y = share,
+      fill = crop)
+) +
+  geom_area(
+    alpha = 0.7,
+    colour = "darkgreen",
+    linewidth = 0.3
+  ) +
+  facet_wrap(~"Stacked area plot") +
+  scale_y_continuous(
+    labels = scales::percent_format()
+  ) +
+  scale_fill_manual(values = c(
+    "Wheat"  = wheat_col,
+    "Barley" = barley_col
+  )) +
+  labs(
+    x = "",
+    y = "",
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(
+    legend.position = "none"
+  )
+
+## Heatmap ----
+
+p6 <- ggplot(ts_dataset) +
+  geom_tile(
+    aes(x = year_ended_june,
+        y = crop,
+        fill = productivity)
+  ) +
+  scale_fill_gradient(
+    low = "#E8F5E9",
+    high = wheat_col,
+    na.value = NA
+  ) +
+  facet_wrap(~"Heatmap") +
+  labs(
+    x = "",
+    y = NULL,
+    fill = ""
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(legend.position = "none",
+        axis.text.y = element_text(angle = 90, vjust = 0.5, hjust = 0.5))
+
+## Slope plot ----
+
+slope_data <- ts_dataset |>
+  filter(
+    crop %in% c("Wheat", "Barley"),
+    year_ended_june %in% c(2004, 2024)
+  )
+
+p7<- ggplot(
+  slope_data,
+  aes(x = factor(year_ended_june),
+      y = productivity,
+      group = crop,
+      colour = crop)
+) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2.5) +
+  scale_colour_manual(values = c(
+    "Wheat"  = wheat_col,
+    "Barley" = barley_col
+  )) +
+  facet_wrap(~"Slope plot") +
+  labs(
+    x = NULL,
+    y = "",
+    colour = NULL
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+
+## Bubble time plot ----
+
+p8 <- ggplot(
+  ts_dataset |> 
+    filter(year_ended_june > 2020) |>
+    drop_na(productivity),
+  aes(x = year_ended_june,
+      y = crop,
+      group = crop,
+      colour = crop)
+) +
+  geom_line(
+    linewidth = 0.4,
+    alpha = 0.5
+  ) +
+  geom_point(
+    aes(size = productivity),
+    fill = wheat_col,
+    shape = 21,
+    alpha = 0.8,
+    stroke = 0.3
+  ) +
+  scale_colour_manual(values = c(
+    "Wheat"  = wheat_col,
+    "Barley" = barley_col
+  )) +
+  scale_size(range = c(2, 9)) +
+  scale_x_continuous(
+    expand = expansion(mult = c(0.1, 0.12))
+  ) +
+  facet_wrap(~"Circle timeline plot") +
+  labs(
+    x = NULL,
+    y = NULL,
+    size = "Productivity"
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(
+    legend.position = "none",
+    axis.text.y = element_text(angle = 90, vjust = 0.5, hjust = 0.5)
+  )
+
+## Change plot ----
+
+ts_change_wheat <- ts_dataset |>
+  filter(crop == "Wheat") |>
+  filter(year_ended_june > 2014) |>
+  arrange(year_ended_june) |>
+  mutate(
+    change = productivity - lag(productivity)
+  ) |>
+  drop_na(change)
+
+p9 <- ggplot(
+  ts_change_wheat,
+  aes(x = year_ended_june,
+      y = change)
+) +
+  geom_col(
+    fill = wheat_col,
+    alpha = 0.85
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linewidth = 0.3,
+    colour = "grey40"
+  ) +
+  scale_x_continuous(breaks = seq(2015, 2025, by = 2)) +
+  facet_wrap(~"Change plot") +
+  labs(
+    x = "",
+    y = "Δ"
+  ) +
+  theme_minimal(base_size = 9, base_family = font_main) +
+  theme(
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+
+# Combine plots ------
+
+p_all <- p1 + p2 + p3 + p4 +
+  p5 + p6 + p7 + p8 + p9 +
+  plot_annotation(
+    title = "A small guide to visualizing time series data",
+    subtitle = "Time series plots help us understand how data evolves over time, revealing trends and patterns that numbers\nalone may hide. From line to change plots, the choice of plot depends on the question you want to answer or\nthe relationship you want to highlight.",
+    caption = paste0(
+      "**Data**: Agriculture NZStats - TidyTuesday 2026, Week 07",
+      "<br>**Design**: ",
+      "<span style='font-family:fa-brands; color:#2E7D32;'>\uf09b</span> a-charnobay ",
+      "<span style='font-family:fa-brands; color:#2E7D32;'>\uf08c</span> Aghata Charnobay "
+    )
+  ) +
+  plot_layout(ncol = 3, nrow = 3) &
+  theme(
+    plot.margin = margin(10, 10, 10, 10),
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    strip.text = element_text(
+      family = font_main,
+      face = "bold",
+      size = 10
+    ),
+    plot.title = element_text(
+      family = font_main,
+      face = "bold",
+      size = 16,
+      colour = title_col,
+      margin = margin(t= 5, b= 10)
+    ),
+    plot.subtitle = element_text(
+      family = font_main,
+      colour = text_col,
+      size = 11,
+      lineheight = 1.2,
+      margin = margin(b= 15)
+    ),
+    plot.caption = element_markdown(
+      family = font_main,
+      colour = text_col,
+      lineheight = 1.4,
+      size = 10
+    ),
+    plot.background  = element_rect(fill = bg_col, color = NA),
+    panel.background = element_rect(fill = bg_col, color = NA)
+  )
+
+p_all
+
+
+```
+
+## 5 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "time_series_guide.png", 
+  plot = p_all,
+  width = 8, 
+  height = 7,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+)
+```
+
+
