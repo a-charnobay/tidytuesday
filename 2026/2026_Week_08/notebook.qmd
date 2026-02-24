@@ -74,7 +74,7 @@ tuesdata <- tt_load(2026, week = 8)
 sfi_grants <- tuesdata$sfi_grants
 
 # Preprocess: dates, year, duration
-sfi_grants_clean <- sfi_grants %>%
+sfi_grants_clean <- sfi_grants |>
   mutate(
     start_date = as.Date(start_date),
     end_date   = as.Date(end_date),
@@ -92,9 +92,9 @@ sfi_grants_clean <- sfi_grants %>%
 ```{r}
 #| label: EDA 1
 
-sfi_summary <- sfi_grants_clean %>%
-  filter(year >= 2000, year <= 2024) %>%
-  group_by(year) %>%
+sfi_summary <- sfi_grants_clean |>
+  filter(year >= 2000, year <= 2024) |>
+  group_by(year) |>
   summarise(
     total_funding = sum(current_total_commitment, na.rm = TRUE),
     n_grants      = n(),
@@ -138,21 +138,21 @@ ggplot(sfi_grants_clean, aes(x = grant_duration_years)) +
 #| label: Prepare data for plotting
 
 # Top 10 institutions 2020-2024
-top10 <- sfi_grants_clean %>%
-  filter(year >= 2020, year <= 2024) %>%
-  group_by(research_body) %>%
-  summarise(total_funding = sum(current_total_commitment, na.rm = TRUE), .groups = "drop") %>%
-  slice_max(total_funding, n = 10) %>%
+top10 <- sfi_grants_clean |>
+  filter(year >= 2020, year <= 2024) |>
+  group_by(research_body) |>
+  summarise(total_funding = sum(current_total_commitment, na.rm = TRUE), .groups = "drop") |>
+  slice_max(total_funding, n = 10) |>
   pull(research_body)
 
 # Ranking data for bump chart
-rank_data <- sfi_grants_clean %>%
-  filter(year >= 2020, year <= 2024, research_body %in% top10) %>%
-  group_by(year, research_body) %>%
-  summarise(total_funding = sum(current_total_commitment, na.rm = TRUE), .groups = "drop") %>%
-  group_by(year) %>%
-  mutate(rank = dense_rank(desc(total_funding))) %>%
-  ungroup() %>%
+rank_data <- sfi_grants_clean |>
+  filter(year >= 2020, year <= 2024, research_body %in% top10) |>
+  group_by(year, research_body) |>
+  summarise(total_funding = sum(current_total_commitment, na.rm = TRUE), .groups = "drop") |>
+  group_by(year) |>
+  mutate(rank = dense_rank(desc(total_funding))) |>
+  ungroup() |>
   mutate(
     research_body = str_remove(research_body, "^RCSI "),
     label = case_when(
@@ -186,7 +186,7 @@ p <- ggplot(rank_data, aes(x = year, y = rank, group = research_body)) +
   geom_bump(aes(color = highlight, size = highlight != "Other"), smooth = 8) +
   geom_point(aes(color = highlight), size = 2.5) +
   geom_text(
-    data = rank_data %>% filter(year == 2024) %>% arrange(rank),
+    data = rank_data |> filter(year == 2024) |> arrange(rank),
     aes(label = research_body, color = if_else(highlight == "Other", "grey20", highlight)),
     hjust = 0, nudge_x = 0.08, size = 2, show.legend = FALSE
   ) +
@@ -226,11 +226,11 @@ p
 
 # Analyze why Teagasc funding spiked in 2024
 
-teagasc_2024 <- sfi_grants_clean %>%
+teagasc_2024 <- sfi_grants_clean |>
   filter(research_body == "Teagasc", year == 2024)
 
 # Summary stats
-teagasc_summary <- teagasc_2024 %>%
+teagasc_summary <- teagasc_2024 |>
   summarise(
     total_funding = sum(current_total_commitment, na.rm = TRUE),
     n_grants      = n(),
@@ -241,16 +241,16 @@ teagasc_summary <- teagasc_2024 %>%
 teagasc_summary
 
 # Top 10 grants
-top_projects <- teagasc_2024 %>%
-  arrange(desc(current_total_commitment)) %>%
-  select(proposal_title, programme_name, current_total_commitment) %>%
+top_projects <- teagasc_2024 |>
+  arrange(desc(current_total_commitment)) |>
+  select(proposal_title, programme_name, current_total_commitment) |>
   slice_head(n = 10)
 
 top_projects
 
 # Share of total funding
-teagasc_shares <- teagasc_2024 %>%
-  mutate(share = current_total_commitment / sum(current_total_commitment, na.rm = TRUE)) %>%
+teagasc_shares <- teagasc_2024 |>
+  mutate(share = current_total_commitment / sum(current_total_commitment, na.rm = TRUE)) |>
   arrange(desc(share))
 
 teagasc_shares
