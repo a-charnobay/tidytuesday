@@ -1,0 +1,281 @@
+---
+title: "Science Foundation Ireland Grants Commitments"
+subtitle: "TidyTuesday Week 08"
+author: "Aghata Charnobay"
+date: "2026-02-23"
+categories: [timeseries,bump chart]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+This week we're exploring Irish STEM research and ancillary projects funded by Science Foundation Ireland (SFI) since its foundation in 2000 to its dissolution on 31st July 2024. The data comes from [Ireland's Open Data Portal](https://data.gov.ie/dataset/science-foundation-ireland-grants-commitments).
+
+> SFI was the national foundation in Ireland for investment in scientific and engineering research. Consequently, SFI invested in those academic researchers and research teams who were most likely to generate new knowledge, leading edge technologies and competitive enterprises in the fields of science, technology, engineering and maths (STEM).
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(tidyverse)
+library(lubridate)
+library(ggbump)
+library(ggtext)
+library(showtext)
+library(here)
+
+```
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+#| 
+font_add_google("Commissioner")
+showtext_auto()
+font_main <- "Commissioner"
+
+# Font Awesome for caption
+font_add(family = "fa-brands", regular = here("fonts", "Font Awesome 7 Brands-Regular-400.otf"))
+
+# Colors
+title_col <- "grey10"
+text_col  <- "grey30"
+bg_col    <- "#F2F4F8"
+
+# Highlight colors for plot
+highlight_colors <- c(
+  "UCD"     = "#1F4E79",
+  "TCD"     = "#0097A7",
+  "Teagasc" = "#43A047",
+  "Other"   = "grey90",
+  "grey20"  = "grey20"
+)
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 8)
+sfi_grants <- tuesdata$sfi_grants
+
+# Preprocess: dates, year, duration
+sfi_grants_clean <- sfi_grants %>%
+  mutate(
+    start_date = as.Date(start_date),
+    end_date   = as.Date(end_date),
+    year       = year(start_date),
+    grant_duration_days  = as.numeric(end_date - start_date),
+    grant_duration_years = grant_duration_days / 365
+  )
+
+```
+
+## 2 Quick exploratory data analysis
+
+### 2.1 Total funding and number of grants over years
+
+```{r}
+#| label: EDA 1
+
+sfi_summary <- sfi_grants_clean %>%
+  filter(year >= 2000, year <= 2024) %>%
+  group_by(year) %>%
+  summarise(
+    total_funding = sum(current_total_commitment, na.rm = TRUE),
+    n_grants      = n(),
+    avg_grant     = total_funding / n_grants,
+    .groups = "drop"
+  )
+
+# Total funding over time
+ggplot(sfi_summary) +
+  geom_line(aes(x = year, y = total_funding), size = 1.2) +
+  labs(title = "Total Funding Over time", x = "Year", y = "") +
+  theme_minimal(base_family = font_main)
+
+# Number of grants over time
+ggplot(sfi_summary) +
+  geom_line(aes(x = year, y = n_grants), size = 1.2) +
+  labs(title = "Number of Grants Over time", x = "Year", y = "") +
+  theme_minimal(base_family = font_main)
+
+
+```
+
+### 2.2 Distribution of grant durations
+
+```{r}
+
+#| label: EDA 2
+
+ggplot(sfi_grants_clean, aes(x = grant_duration_years)) +
+  geom_histogram(binwidth = 0.5, fill = "grey40", color = "white") +
+  scale_x_continuous(breaks = seq(0, 15, 1)) +
+  labs(title = "Distribution of Grant Durations in Years", x = "Duration (Years)", y = "Number of grants") +
+  theme_minimal(base_family = font_main)
+
+```
+
+## 3 Prepare data for plotting
+
+```{r}
+
+#| label: Prepare data for plotting
+
+# Top 10 institutions 2020-2024
+top10 <- sfi_grants_clean %>%
+  filter(year >= 2020, year <= 2024) %>%
+  group_by(research_body) %>%
+  summarise(total_funding = sum(current_total_commitment, na.rm = TRUE), .groups = "drop") %>%
+  slice_max(total_funding, n = 10) %>%
+  pull(research_body)
+
+# Ranking data for bump chart
+rank_data <- sfi_grants_clean %>%
+  filter(year >= 2020, year <= 2024, research_body %in% top10) %>%
+  group_by(year, research_body) %>%
+  summarise(total_funding = sum(current_total_commitment, na.rm = TRUE), .groups = "drop") %>%
+  group_by(year) %>%
+  mutate(rank = dense_rank(desc(total_funding))) %>%
+  ungroup() %>%
+  mutate(
+    research_body = str_remove(research_body, "^RCSI "),
+    label = case_when(
+      str_detect(research_body, "UCD")      ~ "UCD",
+      str_detect(research_body, "TCD")      ~ "TCD",
+      str_detect(research_body, "Galway")   ~ "Galway",
+      str_detect(research_body, "UL")       ~ "UL",
+      str_detect(research_body, "UCC")      ~ "UCC",
+      str_detect(research_body, "RCSI")     ~ "RCSI",
+      str_detect(research_body, "TNI")      ~ "TNI",
+      str_detect(research_body, "Teagasc")  ~ "Teagasc",
+      str_detect(research_body, "DCU")      ~ "DCU",
+      str_detect(research_body, "MU")       ~ "MU",
+      TRUE ~ research_body
+    ),
+    highlight = if_else(label %in% c("UCD", "TCD", "Teagasc"), label, "Other")
+  )
+
+```
+
+## 4 Plot
+
+```{r}
+
+#| label: Plot data
+#| fig-height: 7
+#| fig-width: 4
+
+
+p <- ggplot(rank_data, aes(x = year, y = rank, group = research_body)) +
+  geom_bump(aes(color = highlight, size = highlight != "Other"), smooth = 8) +
+  geom_point(aes(color = highlight), size = 2.5) +
+  geom_text(
+    data = rank_data %>% filter(year == 2024) %>% arrange(rank),
+    aes(label = research_body, color = if_else(highlight == "Other", "grey20", highlight)),
+    hjust = 0, nudge_x = 0.08, size = 2, show.legend = FALSE
+  ) +
+  scale_color_manual(values = highlight_colors) +
+  scale_size_manual(values = c(`TRUE` = 1.4, `FALSE` = 0.7), guide = "none") +
+  scale_y_reverse(breaks = 1:10) +
+  scale_x_continuous(breaks = 2020:2024, expand = expansion(mult = c(0.02, 0.4))) +
+  coord_cartesian(clip = "off") +
+  labs(
+    title = "Who Leads Research Funding in Ireland?",
+    subtitle = "Ranking of institutions based on the total research grants (€) awarded by Science Foundation Ireland (SFI)",
+    caption = paste0(
+      "**Data**: Ireland's Open Data Portal - TidyTuesday 2026, Week 08",
+      "<br>**Design**: <span style='font-family:fa-brands; color:grey30;'>\uf09b</span> a-charnobay ",
+      "<span style='font-family:fa-brands; color:grey30;'>\uf08c</span> Aghata Charnobay"
+    ),
+    x = NULL, y = NULL
+  ) +
+  theme_minimal(base_family = font_main) +
+  theme(
+    plot.margin = margin(10, 30, 5, 30),
+    plot.title = element_text(face = "bold", size = 14, color = title_col, hjust = 0.5),
+    plot.subtitle = element_text(size = 8, face = "italic", color = text_col, hjust = 0.5),
+    plot.caption = element_markdown(size = 6, color = text_col, hjust = 0.5),
+    legend.position = "none",
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(size = 7)
+  )
+p
+```
+
+## 4.1 Why?
+
+```{r}
+#| label: The why behind Teagasc 2024 rise
+
+# Analyze why Teagasc funding spiked in 2024
+
+teagasc_2024 <- sfi_grants_clean %>%
+  filter(research_body == "Teagasc", year == 2024)
+
+# Summary stats
+teagasc_summary <- teagasc_2024 %>%
+  summarise(
+    total_funding = sum(current_total_commitment, na.rm = TRUE),
+    n_grants      = n(),
+    avg_grant     = mean(current_total_commitment, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+teagasc_summary
+
+# Top 10 grants
+top_projects <- teagasc_2024 %>%
+  arrange(desc(current_total_commitment)) %>%
+  select(proposal_title, programme_name, current_total_commitment) %>%
+  slice_head(n = 10)
+
+top_projects
+
+# Share of total funding
+teagasc_shares <- teagasc_2024 %>%
+  mutate(share = current_total_commitment / sum(current_total_commitment, na.rm = TRUE)) %>%
+  arrange(desc(share))
+
+teagasc_shares
+```
+
+## 5 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "research_funding_ireland.png", 
+  plot = p,
+  width = 7, 
+  height = 4,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+)
+```
+
+
+
+
+
+
+
