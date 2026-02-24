@@ -55,6 +55,9 @@ rsconnect/
 site_libs/
 /rendered/
 
+# Fonts folder
+
+fonts/
 
 # macOS system files
 .DS_Store
