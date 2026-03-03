@@ -253,7 +253,7 @@ p<- ggplot(female_data, aes(x = body_condition_index, y = locality_label)) +
   ) +
   labs(
     title = "Mapping Tortoise Health Across Lake Prespa",
-    subtitle = "The Body Condition Index (BCI) measures a tortoise’s mass against its expected size. It's a key indicator<br>of health: higher scores represent better condition. Data from Lake Prespa (North Macedonia) shows<br>that <span style='color:#ECB0B6;'>**female**</span> island tortoises present lower BCI levels than those on the neighboring mainland.",
+    subtitle = "The Body Condition Index (BCI) measures tortoise’s mass against its expected size. It's a key indicator<br>of health: higher scores represent better condition. Data from Lake Prespa (North Macedonia) shows<br>that <span style='color:#ECB0B6;'>**female**</span> island tortoises present lower BCI levels than those on the neighboring mainland.",
     x = "BCI", 
     y = NULL,
     caption = paste0(
