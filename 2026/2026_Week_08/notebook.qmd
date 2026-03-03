@@ -45,6 +45,7 @@ library(here)
 #| 
 font_add_google("Commissioner")
 showtext_auto()
+showtext_opts(dpi = 300) 
 font_main <- "Commissioner"
 
 # Font Awesome for caption
