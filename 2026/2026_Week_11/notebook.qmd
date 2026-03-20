@@ -1,0 +1,255 @@
+---
+title: "Salmonid Mortality Data"
+subtitle: "TidyTuesday Week 10"
+author: "Aghata Charnobay"
+date: "2026-03-16"
+categories: [, ]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+The datasets this week come from the suite of Salmonid mortality datasets published by the Norwegian Veterinary Institute. A total of five datasets are published on the [Laksetap Shiny App](https://apps.vetinst.no/laksetap/) and [API](https://apps.vetinst.no/salmonid-mortality-public-api/). This data captures the public interest as the Norwegian government [goal](https://blog.manolinaqua.com/en/norways-5-percent-goal-for-lower-salmon-mortality) is to push for lower mortality. Here, two datasets are shared, the monthly mortality data, and the monthly loses data. TidyTuesday users can explore the other datasets if they wish. Data is available from 2020.
+
+> The Fish Health Report is the Norwegian Veterinary Institute's annual status report on the health and welfare situation for Norwegian farmed fish and is based on official statistics, data from the Norwegian Veterinary Institute and private laboratories. The report also contains results from a survey among fish health personnel and inspectors from the Norwegian Food Safety Authority, as well as assessments of the situation, trends and risks.
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(here)
+library(tidyverse)
+library(tidytext)
+library(ggtext)       
+library(showtext) 
+library(stringr)
+library(lubridate)
+
+```
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+
+# Font setup 
+font_add_google("Commissioner")
+showtext_auto()
+showtext_opts(dpi = 300)
+font_main <- "Commissioner"
+
+# Font Awesome for caption
+font_add(family = "fa-brands", regular = here("fonts", "Font Awesome 7 Brands-Regular-400.otf"))
+
+# Colors
+title_col <- "grey10"
+text_col  <- "grey30"
+bg_col    <- "#F2F4F8"
+
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 11)
+monthly_losses_data <- tuesdata$monthly_losses_data
+monthly_mortality_data <- tuesdata$monthly_mortality_data
+
+```
+
+## 2 Quick exploratory data analysis
+
+### What patterns and variability can we observe in salmonid mortality over time in Norway?
+
+```{r}
+
+#| label: EDA 1
+
+mortality_national <- monthly_mortality_data |>
+  filter(region == "Norge")
+
+ggplot(mortality_national, aes(x = date, y = median)) +
+  geom_ribbon(aes(ymin = q1, ymax = q3, fill = species), alpha = 0.2) +
+  geom_line(aes(color = species), linewidth = 1) +
+  facet_wrap(~ species, scales = "free_y") +
+  scale_fill_manual(values = c("salmon" = "#2c3e50", "rainbowtrout" = "#e67e22")) +
+  scale_color_manual(values = c("salmon" = "#2c3e50", "rainbowtrout" = "#e67e22")) +
+  theme_minimal(base_size = 12) +
+  labs(
+    x = "Year",
+    y = "Mortality Rate (%)",
+  ) +
+  theme(
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+```
+
+### Are there seasonal patterns in different types of aquaculture losses in Norway?
+
+
+```{r}
+#| label: EDA 2
+
+norge_losses_facet <- monthly_losses_data |>
+  filter(region == "Norge") |>
+  pivot_longer(
+    cols = c(dead, discarded, escaped, other),
+    names_to = "loss_type",
+    values_to = "count"
+  ) |>
+  mutate(month = month(date, label = TRUE, abbr = TRUE)) |> 
+  group_by(month, loss_type) |>
+  summarize(total_count = sum(count, na.rm = TRUE), .groups = "drop")
+
+# Plotting
+ggplot(norge_losses_facet, aes(x = month, y = total_count, color = loss_type, group = loss_type)) +
+  geom_line(linewidth = 1) + 
+  geom_point() +
+  facet_wrap(~ loss_type, scales = "free_y") +
+  expand_limits(y = 0) +
+  theme_minimal() +
+  labs(x = "Year",
+       y = "Total count") +
+  theme(legend.position = "bottom")
+```
+
+
+## 3 Prepare data for plotting
+
+```{r}
+#| label: Prepare data for plotting
+
+plot_data <- monthly_losses_data |>
+  filter(region == "Norge", species == "salmon") |>
+  mutate(year = year(date), qtr = quarter(date)) |>
+  group_by(year, qtr) |>
+  summarize(
+    total_dead = sum(dead, na.rm = TRUE),
+    total_losses = sum(losses, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  filter(year <= 2025) |>
+  mutate(
+    # Calculate mortality rate
+    amount_end = if_else(total_losses > 0, total_dead / total_losses, 0),
+    time_index = row_number(),
+    qtr_label = paste0("Q", qtr),
+    amount_start = lag(amount_end, default = 0)
+  ) |>
+  mutate(
+    change_type = case_when(
+      time_index == 1 ~ "Total",
+      time_index == n() ~ "Total",
+      amount_end >= amount_start ~ "Increase",
+      TRUE ~ "Decrease"
+    ),
+    # Start pillars at 0, floating bars at the previous level
+    plot_ymin = if_else(change_type == "Total", 0, amount_start)
+  )
+```
+
+## 4 Plot
+
+```{r}
+#| label: Plot data
+
+p <- ggplot(plot_data, aes(x = qtr_label)) +
+  # Background Stripes
+  geom_tile(aes(y = max(amount_end)/2, 
+                height = max(amount_end) * 1.1, 
+                fill = factor(time_index %% 2)), 
+            width = 1, alpha = 0.1, show.legend = FALSE) +
+  # Boxes
+  geom_rect(aes(xmin = as.numeric(factor(qtr_label)) - 0.4, 
+                xmax = as.numeric(factor(qtr_label)) + 0.4, 
+                ymin = plot_ymin, ymax = amount_end, 
+                fill = change_type), 
+            color = NA) + 
+  # Box borders
+  geom_rect(aes(xmin = as.numeric(factor(qtr_label)) - 0.4, 
+                xmax = as.numeric(factor(qtr_label)) + 0.4, 
+                ymin = plot_ymin, ymax = amount_end), 
+            fill = NA, color = "grey20", linewidth = 0.5) +
+  # Box connectors
+  geom_segment(data = filter(plot_data, time_index < n()),
+               aes(x = as.numeric(factor(qtr_label)) + 0.4, 
+                   xend = as.numeric(factor(qtr_label)) + 0.6, 
+                   y = amount_end, yend = amount_end),
+               color = "grey20", linewidth = 0.5) +
+  # Annotations
+  geom_text(data = filter(plot_data, change_type == "Total"),
+            aes(y = amount_end, 
+                label = scales::percent(amount_end, accuracy = 0.1)),
+            vjust = -1.6, fontface = "bold", color = "grey20", size = 2.5) +
+  facet_grid(~year, switch = "x", scales = "free_x", space = "free_x") +
+  scale_fill_manual(values = c(
+    "Increase" = "#AE445A",
+    "Decrease" = "#456268",
+    "Total"    = "#2C3333",
+    "0" = "grey85", "1" = "white" 
+  )) +
+  scale_y_continuous(labels = scales::label_percent(), 
+                     expand = expansion(mult = c(0, 0.2))) + 
+  # Title, subtitle, axis naming
+  labs(
+    title = "Salmon Deaths Dominate Norwegian Farm losses",
+    subtitle = "As the world’s leading producer of Atlantic salmon, Norway continues to face a critical challenge: mortality<br>accounts for the majority of fish losses. This chart illustrates the fluctuating share of mortality relative<br>to total losses, which experienced notable <b><span style=\"color:#AE445A;\">ups</span></b> and <b><span style=\"color:#456268;\">downs</span></b> over the period, while remaining consistently<br>high.",
+    x = NULL, y = "Mortality share (%)",
+    caption = paste0(
+      "**Data**: Norwegian Veterinary Institute - TidyTuesday 2026, Week 11",
+      "<br>**Design**: <span style='font-family:fa-brands; color:#AE445A;'>&#xf09b;</span> a-charnobay ",
+      "<span style='font-family:fa-brands; color:#AE445A;'>&#xf08c;</span> Aghata Charnobay"
+    )
+  ) +
+  # Styling
+  theme_minimal(base_family = font_main) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, color = title_col),
+    plot.title.position = "plot",
+    plot.margin = margin(20, 20, 10, 20),
+    plot.subtitle = element_markdown(size = 11, margin = margin(t = 5, b = 10), lineheight = 1.2),
+    panel.spacing = unit(0, "lines"),
+    plot.caption = element_markdown(size = 9, color = text_col, margin = margin(t = 15), lineheight = 1.1),
+    strip.placement = "outside", 
+    strip.background = element_rect(fill = "grey90", color = "white"),
+    strip.text = element_text(face = "bold", size = 10),
+    axis.text.x = element_text(size = 8, face = "bold"),
+    axis.title.y = element_text(size = 10),
+    axis.text.y = element_text(size = 8),
+    panel.grid = element_blank(),
+    legend.position = "none"
+  )
+
+p
+```
+
+## 5 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "salmonid_mortality_data.png", 
+  plot = p,
+  width = 8, 
+  height = 5,
+  dpi = 300,
+  bg = "white"
+)
+```

@@ -1,0 +1,169 @@
+---
+title: "How likely is 'likely'?"
+subtitle: "TidyTuesday Week 10"
+author: "Aghata Charnobay"
+date: "2026-10-03"
+categories: [distribution, ridge]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+In an [online quiz](https://probability.kucharski.io), created as an independent project by Adam Kucharski, over 5,000 participants compared pairs of probability phrases (e.g. “Which conveys a higher probability: Likely or Probable?”) and assigned numerical values (0–100%) to each of 19 phrases. The resulting data can be used to analyse how people interpret common probability phrases
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(tidyverse)
+library(tidytext)
+library(ggtext)       
+library(showtext) 
+library(stringr)
+library(here)
+library(patchwork)
+library(ggridges)
+
+```
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+#| 
+font_add_google("Commissioner")
+showtext_auto()
+showtext_opts(dpi = 300)
+font_main <- "Commissioner"
+
+# Font Awesome for caption
+font_add(family = "fa-brands", regular = here("fonts", "Font Awesome 7 Brands-Regular-400.otf"))
+
+# Colors
+title_col <- "grey10"
+text_col  <- "grey30"
+bg_col    <- "#F2F4F8"
+
+
+
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 10)
+absolute_judgements <- tuesdata$absolute_judgements
+pairwise_comparisons <- tuesdata$pairwise_comparisons
+respondent_metadata <- tuesdata$respondent_metadata
+
+```
+
+## 2 Prepare data for plotting
+
+```{r}
+#| label: Prepare data for plotting
+
+ordered_terms <- c(
+  "Almost No Chance", "Highly Unlikely", "Remote Chance", "Improbable", 
+  "Chances are Slight", "Little Chance", "Unlikely", "Might Happen", 
+  "Could Happen", "Realistic Possibility", "About Even", "May Happen", 
+  "Better than Even", "Probable", "Likely", "Very Good Chance", 
+  "Highly Likely", "Almost Certain", "Will Happen"
+)
+
+ridge_data <- absolute_judgements |>
+  mutate(term = factor(term, levels = rev(ordered_terms)))
+
+```
+
+## 3 Plot
+
+```{r}
+#| label: Plot data
+
+p <- ggplot(ridge_data, aes(x = probability, y = term, fill = ..x..)) +
+  geom_density_ridges_gradient(
+    scale = 3,
+    rel_min_height = 0.01
+  ) +
+  scale_fill_gradient(
+    low = "#A37AD9",   # conservative
+    high = "#2E7D5B"   # optimistic
+  ) +
+  labs(
+    title = "What does “Likely” mean?",
+    subtitle = "When someone says something is “likely” to happen, what chance do you think (from 0 to<br> 100%) it has of actually happening? Data show people tend to agree on extreme terms but<br>interpret middle-range words very differently.",
+    x = "Assigned Numerical Probability (%)",
+    y = "",
+    caption = paste0(
+      "**Data**: CAPphrase: Adam Kucharski - TidyTuesday 2026, Week 10",
+      "<br>**Design**: <span style='font-family:fa-brands; color:#A37AD9;'>\uf09b</span> a-charnobay ",
+      "<span style='font-family:fa-brands; color:#A37AD9;'>\uf08c</span> Aghata Charnobay"
+    )
+  ) +
+  theme_minimal(base_family = font_main) +
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      size = 16,
+      color = title_col
+    ),
+    plot.title.position = "plot",
+    plot.margin = margin(20, 60, 10, 20),
+    plot.subtitle = element_markdown(
+      size = 11,
+      margin = margin(t = 5, b = 15),
+      lineheight = 1.1
+    ),
+    plot.caption = element_markdown(
+      size = 9,
+      color = text_col,
+      margin = margin(t = 15),
+      lineheight = 1.1
+    ),
+    axis.text.x = element_text(size = 9),
+    axis.text.y = element_text(size = 9),
+    axis.title.x = element_text(size = 10),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(
+      color = "gray90",
+      linewidth = 0.15
+    ),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  )
+
+```
+
+## 4 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "likely.png", 
+  plot = p,
+  width = 7, 
+  height = 8,
+  dpi = 300, 
+  bg = "white"
+)
+```
+
+
+
