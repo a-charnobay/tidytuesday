@@ -3,7 +3,7 @@ title: "Salmonid Mortality Data"
 subtitle: "TidyTuesday Week 10"
 author: "Aghata Charnobay"
 date: "2026-03-16"
-categories: [, ]
+categories: [timeseries, waterfall]
 page-navigation: true
 toc: true
 toc-depth: 3
