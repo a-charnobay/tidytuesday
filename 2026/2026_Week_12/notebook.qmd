@@ -1,0 +1,146 @@
+---
+title: "One Million Digits of Pi"
+subtitle: "TidyTuesday Week 12"
+author: "Aghata Charnobay"
+date: "2026-03-24"
+categories: [Generative Art]
+page-navigation: true
+toc: true
+toc-depth: 3
+format:
+  html:
+    theme: flatly
+execute: 
+  warning: false
+  message: false
+---
+
+## A look at this week's dataset
+
+This week we're exploring the digits of π with a dataset submission in celebration of Pi Day (March 14). The dataset contains the first one million digits of π, beginning with 3.14159 …, collected from publicly available sources and curated for analysis and visualization.
+
+> "Pi is an irrational number, meaning its decimal representation never ends and never settles into a permanent repeating pattern."" — *Eve Andersson, collector of the one million digits dataset*.
+
+## 1 Setup
+
+### 1.1 Load libraries
+
+```{r}
+#| label: libraries
+
+library(tidytuesdayR)
+library(here)
+library(tidyverse)
+library(tidytext)
+library(ggtext)       
+library(showtext) 
+library(stringr)
+library(lubridate)
+
+```
+
+### 1.2 Set theme
+
+```{r}
+#| label: Theme and appearance
+
+# Font setup 
+font_add_google("Caveat")
+showtext_auto()
+showtext_opts(dpi = 300)
+font_main <- "Caveat"
+
+# Font Awesome for caption
+font_add(family = "fa-brands", regular = here("fonts", "Font Awesome 7 Brands-Regular-400.otf"))
+
+# Colors
+title_col <- "grey10"
+text_col  <- "grey30"
+bg_col    <- "#F2F4F8"
+
+```
+
+### 1.3 Load tidytuesday data
+
+```{r}
+#| label: load tidytuesday data
+
+tuesdata <- tt_load(2026, week = 12)
+pi_digits <- tuesdata$pi_digits
+
+```
+
+## 2 Prepare data for plotting
+
+```{r}
+#| label: Prepare data for plotting
+
+
+pi_palette <- c(
+  "#0B3D2E", # green
+  "#CFE3D6", # green-light
+  "#06261B", # green-dark
+  "#D97A2B", # orange
+  "#FBE6C8", # orange-light
+  "#A8561E", # orange-dark
+  "#4A2C1D", # brown-dark
+  "#9C7662", # brown-warm
+  "#4E6A78", # blue-gray
+  "#F5F5DC"  # tan-light
+)
+
+grid_size <- 100 
+
+plot_data <- pi_digits %>%
+  filter(digit_position <= grid_size^2) %>%
+  mutate(
+    x = (digit_position - 1) %% grid_size,
+    y = desc((digit_position - 1) %/% grid_size),
+    digit = as.factor(digit)
+  )
+
+```
+
+## 3 Plot
+
+```{r}
+#| label: Plot data
+
+
+p1<- ggplot(plot_data, aes(x = x, y = y, color = digit)) +
+  geom_point(shape = 19, size = 1.5) + 
+  scale_color_manual(values = pi_palette) +
+  labs(caption = paste0(
+      "**Data**: PiDay - TidyTuesday 2026, Week 12",
+      "<br>**Design**: <span style='font-family:fa-brands; color:#D97A2B;'>&#xf09b;</span> a-charnobay ",
+      "<span style='font-family:fa-brands; color:#D97A2B;'>&#xf08c;</span> Aghata Charnobay"
+    ))+
+  theme_minimal(base_family = font_main) +
+  theme(
+    plot.background = element_rect(fill = "#F8F9FA"),
+    plot.caption = element_markdown(size = 10, color = text_col, margin = margin(t = 5), lineheight = 1.1, hjust = 0.5),
+     legend.position = "none",
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_blank()
+  )
+
+p1
+
+```
+
+## 4 Save plot
+
+```{r}
+#| label: Save plot
+#| eval: false
+
+ggsave(
+  filename = "pi_digits.png", 
+  plot = p1,
+  width = 6, 
+  height = 6,
+  dpi = 300,
+  bg = "white"
+)
+```
